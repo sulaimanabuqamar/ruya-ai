@@ -8,18 +8,16 @@ import {
   Avatar,
   List,
   SegmentedButtons,
+  ActivityIndicator,
+  HelperText,
 } from 'react-native-paper';
+import { useAuth } from '../context/AuthContext';
 
 const BACKGROUND = '#242423';
 const SURFACE = '#2F312F';
 const PRIMARY = '#2563EB';
 const TEXT = '#F4F7F5';
 const SUBTEXT = '#9CA3AF';
-
-type MockUser = {
-  name: string;
-  email: string;
-};
 
 const HISTORY_ITEMS = [
   { id: '1', title: 'Dubai Marina → DIFC', subtitle: 'Ride · Completed' },
@@ -28,24 +26,58 @@ const HISTORY_ITEMS = [
 ];
 
 export function ProfileScreen() {
-  const [user, setUser] = useState<MockUser | null>(null);
-  const [authSegment, setAuthSegment] = useState('login');
+  const { user, loading, login, signup, logout } = useAuth();
+  const [authSegment, setAuthSegment] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
   const [femaleOnly, setFemaleOnly] = useState(false);
 
-  const handleAuthSubmit = () => {
-    if (!name.trim() || !email.trim()) return;
-    setUser({ name: name.trim(), email: email.trim() });
+  const handleLogin = async () => {
+    setAuthError('');
+    if (!email.trim() || !password) {
+      setAuthError('Please enter email and password.');
+      return;
+    }
+    try {
+      await login(email.trim(), password);
+    } catch (e) {
+      setAuthError(e instanceof Error ? e.message : 'Login failed.');
+    }
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setName('');
-    setEmail('');
-    setPassword('');
+  const handleSignup = async () => {
+    setAuthError('');
+    if (!name.trim() || !email.trim() || !password) {
+      setAuthError('Please fill in name, email and password.');
+      return;
+    }
+    try {
+      await signup(name.trim(), email.trim(), password);
+    } catch (e) {
+      setAuthError(e instanceof Error ? e.message : 'Sign up failed.');
+    }
   };
+
+  const handleAuthSubmit = () => {
+    if (authSegment === 'login') {
+      handleLogin();
+    } else {
+      handleSignup();
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={PRIMARY} />
+        <Text variant="bodyMedium" style={styles.loadingText}>
+          Please wait…
+        </Text>
+      </View>
+    );
+  }
 
   if (user === null) {
     return (
@@ -67,24 +99,30 @@ export function ProfileScreen() {
             { value: 'signup', label: 'Sign up' },
           ]}
           value={authSegment}
-          onValueChange={setAuthSegment}
+          onValueChange={(v) => {
+            setAuthSegment(v as 'login' | 'signup');
+            setAuthError('');
+          }}
           style={styles.segmented}
         />
 
         <Card style={styles.card} mode="elevated">
           <Card.Content style={styles.cardContent}>
-            <TextInput
-              label="Name"
-              value={name}
-              onChangeText={setName}
-              mode="outlined"
-              style={styles.input}
-            />
+            {authSegment === 'signup' && (
+              <TextInput
+                label="Name"
+                value={name}
+                onChangeText={setName}
+                mode="outlined"
+                style={styles.input}
+              />
+            )}
             <TextInput
               label="Email"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
+              autoCapitalize="none"
               mode="outlined"
               style={styles.input}
             />
@@ -96,7 +134,16 @@ export function ProfileScreen() {
               mode="outlined"
               style={styles.input}
             />
-            <Button mode="contained" onPress={handleAuthSubmit} style={styles.continueBtn}>
+            {authError ? (
+              <HelperText type="error" visible={!!authError}>
+                {authError}
+              </HelperText>
+            ) : null}
+            <Button
+              mode="contained"
+              onPress={handleAuthSubmit}
+              style={styles.continueBtn}
+            >
               Continue
             </Button>
           </Card.Content>
@@ -126,6 +173,9 @@ export function ProfileScreen() {
             {user.name}
           </Text>
           <Text variant="bodySmall" style={styles.rating}>
+            {user.email}
+          </Text>
+          <Text variant="bodySmall" style={styles.rating}>
             4.8 ★
           </Text>
           <View style={styles.tags}>
@@ -147,8 +197,8 @@ export function ProfileScreen() {
                 Female-only carpool
               </Text>
               <Text variant="bodySmall" style={styles.helperText}>
-                When enabled, your matches will only include female riders/drivers where
-                possible.
+                When enabled, your matches will only include female riders/drivers
+                where possible.
               </Text>
             </View>
             <NativeSwitch
@@ -175,7 +225,7 @@ export function ProfileScreen() {
         </Card>
       ))}
 
-      <Button mode="outlined" onPress={handleLogout} style={styles.logoutBtn}>
+      <Button mode="outlined" onPress={() => logout()} style={styles.logoutBtn}>
         Log out
       </Button>
     </ScrollView>
@@ -186,6 +236,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BACKGROUND,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: SUBTEXT,
+    marginTop: 12,
   },
   content: {
     paddingHorizontal: 20,

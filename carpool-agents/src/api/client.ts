@@ -1,11 +1,14 @@
-const BASE_URL = 'https://example.com/api';
+const BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://example.com';
 
 async function request<T>(
   path: string,
   method: 'GET' | 'POST',
   body?: unknown
 ): Promise<T> {
-  const url = path.startsWith('http') ? path : `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  const url = path.startsWith('http')
+    ? path
+    : `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   const init: RequestInit = {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -13,7 +16,8 @@ async function request<T>(
   };
   const response = await fetch(url, init);
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const text = await response.text();
+    throw new Error(text || `Request failed with status ${response.status}`);
   }
   const text = await response.text();
   if (!text) return undefined as T;
@@ -24,6 +28,6 @@ export function get<T>(path: string): Promise<T> {
   return request<T>(path, 'GET');
 }
 
-export function post<T>(path: string, body?: unknown): Promise<T> {
+export async function post<T>(path: string, body?: unknown): Promise<T> {
   return request<T>(path, 'POST', body);
 }
