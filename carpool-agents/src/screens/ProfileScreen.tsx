@@ -30,7 +30,8 @@ export function ProfileScreen() {
     user, 
     loading, 
     error: authError, 
-    login, 
+    login,
+    signup,
     logout, 
     clearError,
     signInWithGoogle,
@@ -59,13 +60,38 @@ export function ProfileScreen() {
     }
     try {
       await login(email.trim(), password);
-    } catch {
-      // error set in context
+    } catch (err) {
+      // Error already set in context, but also show in form
+      const message = err instanceof Error ? err.message : 'Login failed';
+      setFormError(message);
+    }
+  };
+
+  const handleSignup = async () => {
+    setFormError('');
+    if (!name.trim() || !email.trim() || !password) {
+      setFormError('Please fill in name, email and password.');
+      return;
+    }
+    try {
+      await signup(name.trim(), email.trim(), password);
+    } catch (err) {
+      // Error already set in context, but also show in form
+      const message = err instanceof Error ? err.message : 'Signup failed';
+      if (message.includes('405')) {
+        setFormError('Email signup is temporarily unavailable. Please use Google sign-in.');
+      } else {
+        setFormError(message);
+      }
     }
   };
 
   const handleAuthSubmit = () => {
-    handleLogin();
+    if (authSegment === 'login') {
+      handleLogin();
+    } else {
+      handleSignup();
+    }
   };
 
   const onToggleFemaleOnly = async () => {
@@ -134,7 +160,8 @@ export function ProfileScreen() {
 
         <SegmentedButtons
           buttons={[
-            { value: 'login', label: 'Email Login' },
+            { value: 'login', label: 'Log in' },
+            { value: 'signup', label: 'Sign up' },
           ]}
           value={authSegment}
           onValueChange={(v) => {
@@ -147,6 +174,15 @@ export function ProfileScreen() {
 
         <Card style={styles.card} mode="elevated">
           <Card.Content style={styles.cardContent}>
+            {authSegment === 'signup' && (
+              <TextInput
+                label="Name"
+                value={name}
+                onChangeText={setName}
+                mode="outlined"
+                style={styles.input}
+              />
+            )}
             <TextInput
               label="Email"
               value={email}
@@ -174,7 +210,7 @@ export function ProfileScreen() {
               onPress={handleAuthSubmit}
               style={styles.continueBtn}
             >
-              Log in with Email
+              {authSegment === 'login' ? 'Log in with Email' : 'Sign up with Email'}
             </Button>
           </Card.Content>
         </Card>

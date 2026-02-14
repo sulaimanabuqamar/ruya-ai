@@ -63,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
     webClientId: GOOGLE_WEB_CLIENT_ID,
+    selectAccount: true, // Force account selection
   });
 
   useEffect(() => {
