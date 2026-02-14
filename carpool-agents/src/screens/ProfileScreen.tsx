@@ -26,46 +26,37 @@ const HISTORY_ITEMS = [
 ];
 
 export function ProfileScreen() {
-  const { user, loading, login, signup, logout } = useAuth();
+  const { 
+    user, 
+    loading, 
+    error: authError, 
+    login, 
+    logout, 
+    clearError,
+    signInWithGoogle 
+  } = useAuth();
   const [authSegment, setAuthSegment] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [authError, setAuthError] = useState('');
   const [femaleOnly, setFemaleOnly] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const handleLogin = async () => {
-    setAuthError('');
+    setFormError('');
     if (!email.trim() || !password) {
-      setAuthError('Please enter email and password.');
+      setFormError('Please enter email and password.');
       return;
     }
     try {
       await login(email.trim(), password);
-    } catch (e) {
-      setAuthError(e instanceof Error ? e.message : 'Login failed.');
-    }
-  };
-
-  const handleSignup = async () => {
-    setAuthError('');
-    if (!name.trim() || !email.trim() || !password) {
-      setAuthError('Please fill in name, email and password.');
-      return;
-    }
-    try {
-      await signup(name.trim(), email.trim(), password);
-    } catch (e) {
-      setAuthError(e instanceof Error ? e.message : 'Sign up failed.');
+    } catch {
+      // error set in context
     }
   };
 
   const handleAuthSubmit = () => {
-    if (authSegment === 'login') {
-      handleLogin();
-    } else {
-      handleSignup();
-    }
+    handleLogin();
   };
 
   if (loading) {
@@ -73,7 +64,7 @@ export function ProfileScreen() {
       <View style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={PRIMARY} />
         <Text variant="bodyMedium" style={styles.loadingText}>
-          Please wait…
+          Signing in…
         </Text>
       </View>
     );
@@ -90,33 +81,48 @@ export function ProfileScreen() {
           Profile
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Sign up or log in to manage your carpools.
+          Sign in to manage your carpools.
+        </Text>
+
+        <Card style={styles.card} mode="elevated">
+          <Card.Content style={styles.cardContent}>
+            <Button
+              mode="contained"
+              icon="google"
+              onPress={signInWithGoogle}
+              disabled={loading}
+              style={styles.googleButton}
+            >
+              Continue with Google
+            </Button>
+            
+            {authError && (
+              <HelperText type="error" visible style={styles.errorText}>
+                {authError}
+              </HelperText>
+            )}
+          </Card.Content>
+        </Card>
+
+        <Text variant="bodySmall" style={styles.dividerText}>
+          or
         </Text>
 
         <SegmentedButtons
           buttons={[
-            { value: 'login', label: 'Log in' },
-            { value: 'signup', label: 'Sign up' },
+            { value: 'login', label: 'Email Login' },
           ]}
           value={authSegment}
           onValueChange={(v) => {
             setAuthSegment(v as 'login' | 'signup');
-            setAuthError('');
+            clearError();
+            setFormError('');
           }}
           style={styles.segmented}
         />
 
         <Card style={styles.card} mode="elevated">
           <Card.Content style={styles.cardContent}>
-            {authSegment === 'signup' && (
-              <TextInput
-                label="Name"
-                value={name}
-                onChangeText={setName}
-                mode="outlined"
-                style={styles.input}
-              />
-            )}
             <TextInput
               label="Email"
               value={email}
@@ -134,17 +140,17 @@ export function ProfileScreen() {
               mode="outlined"
               style={styles.input}
             />
-            {authError ? (
-              <HelperText type="error" visible={!!authError}>
-                {authError}
+            {formError ? (
+              <HelperText type="error" visible>
+                {formError}
               </HelperText>
             ) : null}
             <Button
-              mode="contained"
+              mode="outlined"
               onPress={handleAuthSubmit}
               style={styles.continueBtn}
             >
-              Continue
+              Log in with Email
             </Button>
           </Card.Content>
         </Card>
@@ -277,6 +283,18 @@ const styles = StyleSheet.create({
   continueBtn: {
     marginTop: 8,
     borderRadius: 16,
+  },
+  googleButton: {
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  dividerText: {
+    color: SUBTEXT,
+    textAlign: 'center',
+    marginVertical: 16,
+  },
+  errorText: {
+    marginTop: 8,
   },
   profileCard: {
     backgroundColor: SURFACE,

@@ -14,14 +14,25 @@ async function request<T>(
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   };
-  const response = await fetch(url, init);
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed with status ${response.status}`);
+  const res = await fetch(url, init);
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
   }
-  const text = await response.text();
-  if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+
+  if (!res.ok) {
+    const msg =
+      (data && typeof data === 'object' && 'message' in data && typeof (data as { message: unknown }).message === 'string')
+        ? (data as { message: string }).message
+        : data != null
+          ? (typeof data === 'string' ? data : JSON.stringify(data))
+          : `Request failed with status ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return (data ?? undefined) as T;
 }
 
 export function get<T>(path: string): Promise<T> {
