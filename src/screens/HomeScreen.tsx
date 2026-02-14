@@ -30,7 +30,7 @@ export function HomeScreen({ navigation }: Props) {
     >
       <View style={styles.header}>
         <Text variant="headlineMedium" style={styles.title}>
-          Carpool UAE
+          Merge
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
           Offer or find rides and parking, powered by AI.
@@ -45,24 +45,24 @@ export function HomeScreen({ navigation }: Props) {
       <Card style={styles.sectionCard} mode="elevated">
         <Card.Content style={styles.cardContent}>
           <Text variant="titleLarge" style={styles.sectionLabel}>
-            Need
+            Book
           </Text>
           <Text variant="bodyMedium" style={styles.sectionDesc}>
-            Book a ride or parking spot right now.
+            Book a ride or parking spot.
           </Text>
           <Button
             mode="contained"
             onPress={() => navigation.navigate('RideFlow', { mode: 'need' })}
             style={styles.primaryBtn}
           >
-            Book ride
+            Book Ride
           </Button>
           <Button
             mode="outlined"
             onPress={() => navigation.navigate('ParkingFlow', { mode: 'need' })}
             style={styles.outlinedBtn}
           >
-            Book parking spot
+            Book Parking Spot
           </Button>
         </Card.Content>
       </Card>
@@ -80,14 +80,14 @@ export function HomeScreen({ navigation }: Props) {
             onPress={() => navigation.navigate('RideFlow', { mode: 'offer' })}
             style={styles.primaryBtn}
           >
-            Offer ride
+            Offer Ride
           </Button>
           <Button
             mode="outlined"
             onPress={() => navigation.navigate('ParkingFlow', { mode: 'offer' })}
             style={styles.outlinedBtn}
           >
-            Offer parking space
+            Offer Parking Space
           </Button>
         </Card.Content>
       </Card>

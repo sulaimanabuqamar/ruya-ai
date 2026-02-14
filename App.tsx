@@ -10,9 +10,14 @@ import { appTheme } from './src/theme/theme';
 import type { RootStackParamList, TabParamList } from './src/navigation/types';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { ParkingScreen } from './src/screens/ParkingScreen';
 import { RideFlowScreen } from './src/screens/RideFlowScreen';
 import { ParkingFlowScreen } from './src/screens/ParkingFlowScreen';
 import { AIInternalsScreen } from './src/screens/AIInternalsScreen';
+import { AvailableRidesScreen } from './src/screens/AvailableRidesScreen';
+import { ActiveRideScreen } from './src/screens/ActiveRideScreen';
+import { RideOfferManagementScreen } from './src/screens/RideOfferManagementScreen';
+import { AvailableParkingSpotsScreen } from './src/screens/AvailableParkingSpotsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -41,6 +46,15 @@ function Tabs() {
         options={{
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Parking"
+        component={ParkingScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="car-outline" size={size} color={color} />
           ),
         }}
       />
@@ -98,6 +112,50 @@ export default function App() {
               component={AIInternalsScreen}
               options={{
                 title: 'AI internals',
+                headerShown: true,
+                headerTintColor: HEADER_TINT,
+                headerStyle: { backgroundColor: BACKGROUND },
+                headerTitleStyle: { color: HEADER_TINT },
+              }}
+            />
+            <Stack.Screen
+              name="AvailableRides"
+              component={AvailableRidesScreen}
+              options={{
+                title: 'Available Rides',
+                headerShown: true,
+                headerTintColor: HEADER_TINT,
+                headerStyle: { backgroundColor: BACKGROUND },
+                headerTitleStyle: { color: HEADER_TINT },
+              }}
+            />
+            <Stack.Screen
+              name="ActiveRide"
+              component={ActiveRideScreen}
+              options={{
+                title: 'Your Ride',
+                headerShown: true,
+                headerTintColor: HEADER_TINT,
+                headerStyle: { backgroundColor: BACKGROUND },
+                headerTitleStyle: { color: HEADER_TINT },
+              }}
+            />
+            <Stack.Screen
+              name="RideOfferManagement"
+              component={RideOfferManagementScreen}
+              options={{
+                title: 'Manage Ride Offer',
+                headerShown: true,
+                headerTintColor: HEADER_TINT,
+                headerStyle: { backgroundColor: BACKGROUND },
+                headerTitleStyle: { color: HEADER_TINT },
+              }}
+            />
+            <Stack.Screen
+              name="AvailableParkingSpots"
+              component={AvailableParkingSpotsScreen}
+              options={{
+                title: 'Available Parking',
                 headerShown: true,
                 headerTintColor: HEADER_TINT,
                 headerStyle: { backgroundColor: BACKGROUND },

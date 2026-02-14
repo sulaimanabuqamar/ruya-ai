@@ -56,7 +56,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced;
 }
 
-export function RideFlowScreen({ route }: RideFlowProps) {
+export function RideFlowScreen({ route, navigation }: RideFlowProps) {
   const { mode } = route.params;
   const { user } = useAuth();
   const femaleOnlyCarpool = user?.femaleOnlyCarpool ?? false;
@@ -178,7 +178,45 @@ export function RideFlowScreen({ route }: RideFlowProps) {
   useEffect(() => {
     if (selectionMode === 'none') return;
     if (debouncedSearch.length < 3 || !GOOGLE_MAPS_API_KEY) {
-      setSuggestions([]);
+      // Show popular Dubai places when search is empty
+      if (debouncedSearch.length === 0) {
+        setSuggestions([
+          {
+            id: 'aud',
+            description: 'American University of Dubai',
+          },
+          {
+            id: 'rit',
+            description: 'Rochester Institute of Technology Dubai, Dubai Silicon Oasis',
+          },
+          {
+            id: 'burj-khalifa',
+            description: 'Burj Khalifa, Downtown Dubai',
+          },
+          {
+            id: 'dubai-mall',
+            description: 'The Dubai Mall, Downtown Dubai',
+          },
+          {
+            id: 'dubai-marina',
+            description: 'Dubai Marina',
+          },
+          {
+            id: 'palm-jumeirah',
+            description: 'Palm Jumeirah',
+          },
+          {
+            id: 'dubai-airport',
+            description: 'Dubai International Airport (DXB)',
+          },
+          {
+            id: 'jbr',
+            description: 'Jumeirah Beach Residence (JBR)',
+          },
+        ]);
+      } else {
+        setSuggestions([]);
+      }
       return;
     }
     let cancelled = false;
@@ -192,35 +230,84 @@ export function RideFlowScreen({ route }: RideFlowProps) {
 
   const onSuggestionTap = useCallback(
     async (s: PlaceSuggestion) => {
-      const details = await fetchPlaceDetails(s.id);
-      if (details) {
-        setSelectedLocation(details);
-        setSuggestions([]);
+      // Handle fake Dubai suggestions with hardcoded coordinates
+      const fakePlaces: Record<string, { lat: number; lng: number }> = {
+        'aud': { lat: 25.0907, lng: 55.1571 },
+        'rit': { lat: 25.1310, lng: 55.3894 },
+        'burj-khalifa': { lat: 25.1972, lng: 55.2744 },
+        'dubai-mall': { lat: 25.1975, lng: 55.2796 },
+        'dubai-marina': { lat: 25.0805, lng: 55.1399 },
+        'palm-jumeirah': { lat: 25.1124, lng: 55.1390 },
+        'dubai-airport': { lat: 25.2532, lng: 55.3657 },
+        'jbr': { lat: 25.0782, lng: 55.1329 },
+      };
+
+      if (fakePlaces[s.id]) {
+        const coords = fakePlaces[s.id];
+        const location: LocationPoint = {
+          lat: coords.lat,
+          lng: coords.lng,
+          description: s.description,
+        };
+        setSelectedLocation(location);
+        // setSuggestions([]);
         setRegion({
-          latitude: details.lat,
-          longitude: details.lng,
+          latitude: coords.lat,
+          longitude: coords.lng,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         });
+        setSearchQuery(s.description)
+        // Auto-confirm for fake suggestions
+        /*
+        if (selectionMode === 'pickup') {
+          setPickupLocation(location);
+        } else if (selectionMode === 'dropoff') {
+          setDropoffLocation(location);
+        }
+        setSelectionMode('none');
+        setSearchQuery('');
+        setSelectedLocation(null);
+        */
+      } else {
+        // Handle real Google Places API suggestions
+        const details = await fetchPlaceDetails(s.id);
+        if (details) {
+          setSelectedLocation(details);
+          setSuggestions([]);
+          setRegion({
+            latitude: details.lat,
+            longitude: details.lng,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          });
+        }
       }
     },
-    []
+    [selectionMode]
   );
 
   const handleSubmit = () => {
     if (!isFormValid) return;
-    const payload = {
-      mode,
-      pickupLocation,
-      dropoffLocation,
-      earliestTime: earliestTime ? formatTime(earliestTime) : null,
-      latestTime: latestTime ? formatTime(latestTime) : null,
-      suggestedPrice,
-      demand,
-      femaleOnly: femaleOnlyCarpool,
-    };
-    console.log('Ride flow submit', payload);
-    setSnackVisible(true);
+    
+    if (isNeed) {
+      // Navigate to available rides screen for ride requests
+      navigation.navigate('AvailableRides', {
+        pickupLocation: pickupLocation!,
+        dropoffLocation: dropoffLocation!,
+        earliestTime: earliestTime ? formatTime(earliestTime) : '',
+        latestTime: latestTime ? formatTime(latestTime) : '',
+      });
+    } else {
+      // Navigate to ride offer management screen for ride offers
+      navigation.navigate('RideOfferManagement', {
+        routeStart: pickupLocation!,
+        routeEnd: dropoffLocation!,
+        earliestTime: earliestTime ? formatTime(earliestTime) : '',
+        latestTime: latestTime ? formatTime(latestTime) : '',
+        commission: suggestedPrice,
+      });
+    }
   };
 
   const isNeed = mode === 'need';
@@ -228,8 +315,8 @@ export function RideFlowScreen({ route }: RideFlowProps) {
   if (selectionMode !== 'none') {
     const title =
       selectionMode === 'pickup'
-        ? 'Select pickup location'
-        : 'Select dropoff location';
+        ? isNeed ? 'Select pickup location' : 'Select start location'
+        : isNeed ? 'Select dropoff location' : 'Select end location';
     const currentDesc =
       selectedLocation?.description ??
       `${region.latitude.toFixed(5)}, ${region.longitude.toFixed(5)}`;
@@ -310,7 +397,7 @@ export function RideFlowScreen({ route }: RideFlowProps) {
               <View style={styles.locationRow}>
                 <Ionicons name="location" size={20} color={PRIMARY} />
                 <Text variant="bodyLarge" style={styles.locationLabel}>
-                  Pickup
+                  {isNeed ? 'Pickup' : 'Start'}
                 </Text>
                 <Text
                   variant="bodyMedium"
@@ -326,7 +413,7 @@ export function RideFlowScreen({ route }: RideFlowProps) {
               <View style={styles.locationRow}>
                 <Ionicons name="location-outline" size={20} color={SUBTEXT} />
                 <Text variant="bodyLarge" style={styles.locationLabel}>
-                  Dropoff
+                  {isNeed ? 'Dropoff' : 'End'}
                 </Text>
                 <Text
                   variant="bodyMedium"
@@ -364,7 +451,7 @@ export function RideFlowScreen({ route }: RideFlowProps) {
 
             <View style={styles.readOnlyRow}>
               <Text variant="bodyMedium" style={styles.readOnlyLabel}>
-                Suggested (approx.)
+                {isNeed ? 'Suggested (approx.)' : 'Commission'}
               </Text>
               <Text variant="titleMedium" style={styles.readOnlyValue}>
                 {suggestedPrice} AED

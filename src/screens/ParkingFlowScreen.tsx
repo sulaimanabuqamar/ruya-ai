@@ -1,5 +1,14 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, Pressable, Dimensions } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  ScrollView,
+  Pressable,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+} from 'react-native';
 import MapView from 'react-native-maps';
 import {
   Card,
@@ -69,7 +78,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced;
 }
 
-export function ParkingFlowScreen({ route }: ParkingFlowProps) {
+export function ParkingFlowScreen({ route, navigation }: ParkingFlowProps) {
   const { mode } = route.params;
   const [selectionMode, setSelectionMode] = useState<'none' | 'location'>('none');
   const [parkingLocation, setParkingLocation] = useState<LocationPoint | null>(null);
@@ -77,12 +86,15 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<LocationPoint | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const [fromTime, setFromTime] = useState<Date | null>(parseTime('09:00'));
   const [toTime, setToTime] = useState<Date | null>(parseTime('17:00'));
   const [price, setPrice] = useState('');
   const [priceTouched, setPriceTouched] = useState(false);
   const [snackVisible, setSnackVisible] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
   const bookingProbability = useMemo(
@@ -98,6 +110,23 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
     fromTime != null &&
     toTime != null &&
     priceValid;
+
+  // Handle keyboard events
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      setIsSearchFocused(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+      setIsSearchFocused(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,7 +192,37 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
   useEffect(() => {
     if (selectionMode !== 'location') return;
     if (debouncedSearch.length < 3 || !GOOGLE_MAPS_API_KEY) {
-      setSuggestions([]);
+      // Show popular Dubai places when search is empty
+      if (debouncedSearch.length === 0) {
+        setSuggestions([
+          {
+            id: 'dubai-mall',
+            description: 'The Dubai Mall Parking, Downtown Dubai',
+          },
+          {
+            id: 'mall-of-emirates',
+            description: 'Mall of the Emirates Parking, Al Barsha',
+          },
+          {
+            id: 'dubai-marina-mall',
+            description: 'Dubai Marina Mall Parking',
+          },
+          {
+            id: 'ibn-battuta',
+            description: 'Ibn Battuta Mall Parking, Jebel Ali',
+          },
+          {
+            id: 'city-walk',
+            description: 'City Walk Parking, Al Wasl',
+          },
+          {
+            id: 'deira-city-centre',
+            description: 'Deira City Centre Parking',
+          },
+        ]);
+      } else {
+        setSuggestions([]);
+      }
       return;
     }
     let cancelled = false;
@@ -175,32 +234,84 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
     };
   }, [debouncedSearch, selectionMode]);
 
-  const onSuggestionTap = useCallback(async (s: PlaceSuggestion) => {
-    const details = await fetchPlaceDetails(s.id);
-    if (details) {
-      setSelectedLocation(details);
-      setSuggestions([]);
-      setRegion({
-        latitude: details.lat,
-        longitude: details.lng,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      });
-    }
-  }, []);
+  const onSuggestionTap = useCallback(
+    async (s: PlaceSuggestion) => {
+      // Handle fake Dubai parking suggestions with hardcoded coordinates
+      const fakePlaces: Record<string, { lat: number; lng: number }> = {
+        'dubai-mall': { lat: 25.1975, lng: 55.2796 },
+        'mall-of-emirates': { lat: 25.1185, lng: 55.2008 },
+        'dubai-marina-mall': { lat: 25.0782, lng: 55.1396 },
+        'ibn-battuta': { lat: 25.0443, lng: 55.1173 },
+        'city-walk': { lat: 25.2125, lng: 55.2631 },
+        'deira-city-centre': { lat: 25.2524, lng: 55.3308 },
+      };
 
-  const handleSubmit = () => {
+      if (fakePlaces[s.id]) {
+        const coords = fakePlaces[s.id];
+        const location: LocationPoint = {
+          lat: coords.lat,
+          lng: coords.lng,
+          description: s.description,
+        };
+        setSelectedLocation(location);
+        setSuggestions([]);
+        setRegion({
+          latitude: coords.lat,
+          longitude: coords.lng,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        });
+        // Auto-confirm for fake suggestions
+        setParkingLocation(location);
+        setSelectionMode('none');
+        setSearchQuery('');
+        setSelectedLocation(null);
+      } else {
+        // Handle real Google Places API suggestions
+        const details = await fetchPlaceDetails(s.id);
+        if (details) {
+          setSelectedLocation(details);
+          setSuggestions([]);
+          setRegion({
+            latitude: details.lat,
+            longitude: details.lng,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          });
+        }
+      }
+    },
+    []
+  );
+
+  const handleSubmit = async () => {
     if (!isFormValid) return;
-    const payload = {
-      mode,
-      location: parkingLocation,
-      availableFrom: fromTime ? formatTime(fromTime) : null,
-      availableTo: toTime ? formatTime(toTime) : null,
-      priceAED: price.trim() === '' ? null : Number(price.trim()),
-      bookingProbability,
-    };
-    console.log('Parking flow submit', payload);
-    setSnackVisible(true);
+    
+    if (isNeed) {
+      // Search for parking spots with 2s delay
+      setIsSearching(true);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      navigation.navigate('AvailableParkingSpots', {
+        location: parkingLocation!,
+        fromTime: fromTime ? formatTime(fromTime) : '',
+        toTime: toTime ? formatTime(toTime) : '',
+      });
+      
+      setIsSearching(false);
+    } else {
+      // Offer parking spot
+      const payload = {
+        mode,
+        location: parkingLocation,
+        availableFrom: fromTime ? formatTime(fromTime) : null,
+        availableTo: toTime ? formatTime(toTime) : null,
+        priceAED: price.trim() === '' ? null : Number(price.trim()),
+        bookingProbability,
+      };
+      console.log('Parking flow submit', payload);
+      setSnackVisible(true);
+    }
   };
 
   const isNeed = mode === 'need';
@@ -210,13 +321,24 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
       selectedLocation?.description ??
       `${region.latitude.toFixed(5)}, ${region.longitude.toFixed(5)}`;
 
+    // Calculate bottom sheet height based on content and keyboard
+    const baseSheetHeight = 280;
+    const suggestionsHeight = suggestions.length > 0 ? Math.min(suggestions.length * 60, 240) : 0;
+    const bottomSheetHeight = baseSheetHeight + suggestionsHeight;
+    const totalBottomSpace = bottomSheetHeight + keyboardHeight;
+
     return (
       <View style={styles.fullScreen}>
-        <MapView
-          style={StyleSheet.absoluteFill}
-          region={region}
-          onRegionChangeComplete={setRegion}
-        />
+        <View style={[styles.mapContainer, { marginBottom: totalBottomSpace }]}>
+          <MapView
+            style={StyleSheet.absoluteFill}
+            region={region}
+            onRegionChangeComplete={setRegion}
+          />
+          <View style={styles.centerPin} pointerEvents="none">
+            <Ionicons name="location" size={48} color={PRIMARY} />
+          </View>
+        </View>
         <View style={styles.selectionTopBar}>
           <IconButton
             icon="arrow-left"
@@ -228,42 +350,48 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
           </Text>
           <View style={{ width: 48 }} />
         </View>
-        <View style={styles.centerPin} pointerEvents="none">
-          <Ionicons name="location" size={48} color={PRIMARY} />
-        </View>
-        <View style={styles.bottomSheet}>
-          <TextInput
-            placeholder="Search address..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            mode="outlined"
-            left={<TextInput.Icon icon="magnify" />}
-            style={styles.searchInput}
-          />
-          {!GOOGLE_MAPS_API_KEY && (
-            <HelperText type="info" visible>
-              Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY for search.
-            </HelperText>
-          )}
-          {suggestions.length > 0 && (
-            <Card style={styles.suggestionsCard}>
-              {suggestions.slice(0, 4).map((s) => (
-                <List.Item
-                  key={s.id}
-                  title={s.description}
-                  onPress={() => onSuggestionTap(s)}
-                  titleStyle={styles.suggestionTitle}
-                />
-              ))}
-            </Card>
-          )}
-          <Text variant="bodySmall" style={styles.coordText}>
-            {currentDesc}
-          </Text>
-          <Button mode="contained" onPress={confirmSelection} style={styles.confirmBtn}>
-            Confirm
-          </Button>
-        </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoid}
+        >
+          <View style={[styles.bottomSheet, { maxHeight: SCREEN_HEIGHT * 0.7 }]}>
+            <TextInput
+              placeholder="Search address..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              mode="outlined"
+              left={<TextInput.Icon icon="magnify" />}
+              style={styles.searchInput}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+            />
+            {!GOOGLE_MAPS_API_KEY && (
+              <HelperText type="info" visible>
+                Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY for search.
+              </HelperText>
+            )}
+            {suggestions.length > 0 && (
+              <ScrollView style={styles.suggestionsScroll} nestedScrollEnabled>
+                <Card style={styles.suggestionsCard}>
+                  {suggestions.slice(0, 6).map((s) => (
+                    <List.Item
+                      key={s.id}
+                      title={s.description}
+                      onPress={() => onSuggestionTap(s)}
+                      titleStyle={styles.suggestionTitle}
+                    />
+                  ))}
+                </Card>
+              </ScrollView>
+            )}
+            <Text variant="bodySmall" style={styles.coordText}>
+              {currentDesc}
+            </Text>
+            <Button mode="contained" onPress={confirmSelection} style={styles.confirmBtn}>
+              Confirm
+            </Button>
+          </View>
+        </KeyboardAvoidingView>
       </View>
     );
   }
@@ -358,10 +486,12 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
             <Button
               mode="contained"
               onPress={handleSubmit}
-              disabled={!isFormValid}
+              disabled={!isFormValid || isSearching}
+              loading={isSearching}
               style={styles.submitBtn}
+              labelStyle={isSearching ? styles.searchingText : undefined}
             >
-              {isNeed ? 'Search parking spots' : 'Publish parking spot'}
+              {isSearching ? 'Searching...' : (isNeed ? 'Search parking spots' : 'Publish parking spot')}
             </Button>
           </Card.Content>
         </Card>
@@ -388,6 +518,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BACKGROUND,
   },
+  mapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  keyboardAvoid: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
   selectionTopBar: {
     position: 'absolute',
     top: 0,
@@ -407,28 +547,31 @@ const styles = StyleSheet.create({
   centerPin: {
     position: 'absolute',
     left: SCREEN_WIDTH / 2 - 24,
-    top: SCREEN_HEIGHT / 2 - 48,
+    top: '40%',
     zIndex: 5,
   },
   bottomSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: SURFACE,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
     paddingBottom: 40,
-    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
   searchInput: {
     backgroundColor: BACKGROUND,
     marginBottom: 8,
   },
+  suggestionsScroll: {
+    maxHeight: 240,
+    marginBottom: 8,
+  },
   suggestionsCard: {
     backgroundColor: BACKGROUND,
-    marginBottom: 8,
     borderRadius: 12,
   },
   suggestionTitle: {
@@ -511,6 +654,9 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     borderRadius: 16,
+  },
+  searchingText: {
+    color: '#F4F7F5',
   },
   snackbar: {
     backgroundColor: SURFACE,
