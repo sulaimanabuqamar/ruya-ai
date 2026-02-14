@@ -8,18 +8,16 @@ import {
   Avatar,
   List,
   SegmentedButtons,
+  ActivityIndicator,
+  HelperText,
 } from 'react-native-paper';
+import { useAuth } from '../context/AuthContext';
 
 const BACKGROUND = '#242423';
 const SURFACE = '#2F312F';
 const PRIMARY = '#2563EB';
 const TEXT = '#F4F7F5';
 const SUBTEXT = '#9CA3AF';
-
-type MockUser = {
-  name: string;
-  email: string;
-};
 
 const HISTORY_ITEMS = [
   { id: '1', title: 'Dubai Marina → DIFC', subtitle: 'Ride · Completed' },
@@ -28,24 +26,99 @@ const HISTORY_ITEMS = [
 ];
 
 export function ProfileScreen() {
-  const [user, setUser] = useState<MockUser | null>(null);
-  const [authSegment, setAuthSegment] = useState('login');
+  const { 
+    user, 
+    loading, 
+    error: authError, 
+    login,
+    signup,
+    logout, 
+    clearError,
+    signInWithGoogle,
+    updateFemaleOnlyCarpool,
+  } = useAuth();
+  const [authSegment, setAuthSegment] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [femaleOnly, setFemaleOnly] = useState(false);
+  const [savingPref, setSavingPref] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  // Sync femaleOnly state with user preference
+  React.useEffect(() => {
+    if (user) {
+      setFemaleOnly(user.femaleOnlyCarpool ?? false);
+    }
+  }, [user]);
+
+  const handleLogin = async () => {
+    setFormError('');
+    if (!email.trim() || !password) {
+      setFormError('Please enter email and password.');
+      return;
+    }
+    try {
+      await login(email.trim(), password);
+    } catch (err) {
+      // Error already set in context, but also show in form
+      const message = err instanceof Error ? err.message : 'Login failed';
+      setFormError(message);
+    }
+  };
+
+  const handleSignup = async () => {
+    setFormError('');
+    if (!name.trim() || !email.trim() || !password) {
+      setFormError('Please fill in name, email and password.');
+      return;
+    }
+    try {
+      await signup(name.trim(), email.trim(), password);
+    } catch (err) {
+      // Error already set in context, but also show in form
+      const message = err instanceof Error ? err.message : 'Signup failed';
+      if (message.includes('405')) {
+        setFormError('Email signup is temporarily unavailable. Please use Google sign-in.');
+      } else {
+        setFormError(message);
+      }
+    }
+  };
 
   const handleAuthSubmit = () => {
-    if (!name.trim() || !email.trim()) return;
-    setUser({ name: name.trim(), email: email.trim() });
+    if (authSegment === 'login') {
+      handleLogin();
+    } else {
+      handleSignup();
+    }
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setName('');
-    setEmail('');
-    setPassword('');
+  const onToggleFemaleOnly = async () => {
+    const next = !femaleOnly;
+    setFemaleOnly(next);
+    setSavingPref(true);
+    try {
+      await updateFemaleOnlyCarpool(next);
+    } catch (e) {
+      console.error(e);
+      // Revert on error
+      setFemaleOnly(!next);
+    } finally {
+      setSavingPref(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={PRIMARY} />
+        <Text variant="bodyMedium" style={styles.loadingText}>
+          Signing in…
+        </Text>
+      </View>
+    );
+  }
 
   if (user === null) {
     return (
@@ -58,7 +131,31 @@ export function ProfileScreen() {
           Profile
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Sign up or log in to manage your carpools.
+          Sign in to manage your carpools.
+        </Text>
+
+        <Card style={styles.card} mode="elevated">
+          <Card.Content style={styles.cardContent}>
+            <Button
+              mode="contained"
+              icon="google"
+              onPress={signInWithGoogle}
+              disabled={loading}
+              style={styles.googleButton}
+            >
+              Continue with Google
+            </Button>
+            
+            {authError && (
+              <HelperText type="error" visible style={styles.errorText}>
+                {authError}
+              </HelperText>
+            )}
+          </Card.Content>
+        </Card>
+
+        <Text variant="bodySmall" style={styles.dividerText}>
+          or
         </Text>
 
         <SegmentedButtons
@@ -67,24 +164,31 @@ export function ProfileScreen() {
             { value: 'signup', label: 'Sign up' },
           ]}
           value={authSegment}
-          onValueChange={setAuthSegment}
+          onValueChange={(v) => {
+            setAuthSegment(v as 'login' | 'signup');
+            clearError();
+            setFormError('');
+          }}
           style={styles.segmented}
         />
 
         <Card style={styles.card} mode="elevated">
           <Card.Content style={styles.cardContent}>
-            <TextInput
-              label="Name"
-              value={name}
-              onChangeText={setName}
-              mode="outlined"
-              style={styles.input}
-            />
+            {authSegment === 'signup' && (
+              <TextInput
+                label="Name"
+                value={name}
+                onChangeText={setName}
+                mode="outlined"
+                style={styles.input}
+              />
+            )}
             <TextInput
               label="Email"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
+              autoCapitalize="none"
               mode="outlined"
               style={styles.input}
             />
@@ -96,8 +200,17 @@ export function ProfileScreen() {
               mode="outlined"
               style={styles.input}
             />
-            <Button mode="contained" onPress={handleAuthSubmit} style={styles.continueBtn}>
-              Continue
+            {formError ? (
+              <HelperText type="error" visible>
+                {formError}
+              </HelperText>
+            ) : null}
+            <Button
+              mode="outlined"
+              onPress={handleAuthSubmit}
+              style={styles.continueBtn}
+            >
+              {authSegment === 'login' ? 'Log in with Email' : 'Sign up with Email'}
             </Button>
           </Card.Content>
         </Card>
@@ -126,6 +239,9 @@ export function ProfileScreen() {
             {user.name}
           </Text>
           <Text variant="bodySmall" style={styles.rating}>
+            {user.email}
+          </Text>
+          <Text variant="bodySmall" style={styles.rating}>
             4.8 ★
           </Text>
           <View style={styles.tags}>
@@ -141,19 +257,23 @@ export function ProfileScreen() {
 
       <Card style={styles.card} mode="elevated">
         <Card.Content style={styles.cardContent}>
+          <Text variant="titleMedium" style={styles.sectionTitle}>
+            Matching preferences
+          </Text>
           <View style={styles.toggleRow}>
             <View style={styles.toggleLabelBlock}>
               <Text variant="bodyLarge" style={styles.toggleLabel}>
                 Female-only carpool
               </Text>
               <Text variant="bodySmall" style={styles.helperText}>
-                When enabled, your matches will only include female riders/drivers where
-                possible.
+                When enabled, your matches will only include female riders/drivers
+                where possible. Otherwise, mixed is fine.
               </Text>
             </View>
             <NativeSwitch
               value={Boolean(femaleOnly)}
-              onValueChange={setFemaleOnly}
+              onValueChange={onToggleFemaleOnly}
+              disabled={savingPref}
               thumbColor="#F4F7F5"
               ios_backgroundColor="#4B5563"
             />
@@ -175,7 +295,7 @@ export function ProfileScreen() {
         </Card>
       ))}
 
-      <Button mode="outlined" onPress={handleLogout} style={styles.logoutBtn}>
+      <Button mode="outlined" onPress={() => logout()} style={styles.logoutBtn}>
         Log out
       </Button>
     </ScrollView>
@@ -186,6 +306,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BACKGROUND,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: SUBTEXT,
+    marginTop: 12,
   },
   content: {
     paddingHorizontal: 20,
@@ -219,6 +347,18 @@ const styles = StyleSheet.create({
   continueBtn: {
     marginTop: 8,
     borderRadius: 16,
+  },
+  googleButton: {
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  dividerText: {
+    color: SUBTEXT,
+    textAlign: 'center',
+    marginVertical: 16,
+  },
+  errorText: {
+    marginTop: 8,
   },
   profileCard: {
     backgroundColor: SURFACE,

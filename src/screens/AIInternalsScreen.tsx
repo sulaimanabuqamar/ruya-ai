@@ -1,9 +1,7 @@
 import React from 'react';
-import { StyleSheet, View, ScrollView, Dimensions, Pressable } from 'react-native';
+import { StyleSheet, View, ScrollView, Dimensions } from 'react-native';
 import { Card, Text } from 'react-native-paper';
 import { LineChart } from 'react-native-chart-kit';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 
 const BACKGROUND = '#242423';
 const SURFACE = '#2F312F';
@@ -45,8 +43,6 @@ const BULLETS = [
 ];
 
 export function AIInternalsScreen() {
-  const navigation = useNavigation();
-
   const totalCarsData = {
     labels: iterations.map(String),
     datasets: [{ data: totalCars }],
@@ -66,15 +62,6 @@ export function AIInternalsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={TEXT} />
-        </Pressable>
-        <Text variant="headlineSmall" style={styles.headerTitle}>
-          AI internals & performance
-        </Text>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -199,23 +186,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BACKGROUND,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 48,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: SURFACE,
-  },
-  backBtn: {
-    padding: 8,
-    marginRight: 8,
-  },
-  headerTitle: {
-    color: TEXT,
-    flex: 1,
   },
   scroll: {
     flex: 1,
