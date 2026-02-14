@@ -16,7 +16,8 @@ import { fetchPlaceSuggestions, fetchPlaceDetails } from '../api/maps';
 import type { PlaceSuggestion, LocationPoint } from '../api/maps';
 import { GOOGLE_MAPS_API_KEY } from '../config/maps';
 import { TimePickerInput } from '../components/TimePickerInput';
-import { parseTime } from '../utils/time';
+import { parseTime, formatTime } from '../utils/time';
+import { useAuth } from '../context/AuthContext';
 
 type RideFlowProps = NativeStackScreenProps<RootStackParamList, 'RideFlow'>;
 type SelectionMode = 'none' | 'pickup' | 'dropoff';
@@ -57,6 +58,8 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function RideFlowScreen({ route }: RideFlowProps) {
   const { mode } = route.params;
+  const { user } = useAuth();
+  const femaleOnlyCarpool = user?.femaleOnlyCarpool ?? false;
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('none');
   const [pickupLocation, setPickupLocation] = useState<LocationPoint | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<LocationPoint | null>(null);
@@ -206,15 +209,17 @@ export function RideFlowScreen({ route }: RideFlowProps) {
 
   const handleSubmit = () => {
     if (!isFormValid) return;
-    console.log('Ride flow submit', {
+    const payload = {
+      mode,
       pickupLocation,
       dropoffLocation,
-      earliestTime,
-      latestTime,
+      earliestTime: earliestTime ? formatTime(earliestTime) : null,
+      latestTime: latestTime ? formatTime(latestTime) : null,
       suggestedPrice,
       demand,
-      mode,
-    });
+      femaleOnly: femaleOnlyCarpool,
+    };
+    console.log('Ride flow submit', payload);
     setSnackVisible(true);
   };
 
@@ -372,6 +377,14 @@ export function RideFlowScreen({ route }: RideFlowProps) {
               </Text>
               <View style={[styles.demandBar, { width: `${demand.score * 10}%` }]} />
             </View>
+
+            {femaleOnlyCarpool && (
+              <View style={styles.femaleOnlyBadge}>
+                <Text variant="bodySmall" style={styles.femaleOnlyText}>
+                  This ride will be matched as <Text style={styles.femaleOnlyStrong}>female-only</Text>
+                </Text>
+              </View>
+            )}
 
             <Button
               mode="contained"
@@ -541,6 +554,21 @@ const styles = StyleSheet.create({
     height: 8,
     backgroundColor: PRIMARY,
     borderRadius: 4,
+  },
+  femaleOnlyBadge: {
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 16,
+    alignSelf: 'flex-start',
+  },
+  femaleOnlyText: {
+    color: TEXT,
+  },
+  femaleOnlyStrong: {
+    color: PRIMARY,
+    fontWeight: 'bold',
   },
   submitBtn: {
     borderRadius: 16,

@@ -33,14 +33,23 @@ export function ProfileScreen() {
     login, 
     logout, 
     clearError,
-    signInWithGoogle 
+    signInWithGoogle,
+    updateFemaleOnlyCarpool,
   } = useAuth();
   const [authSegment, setAuthSegment] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [femaleOnly, setFemaleOnly] = useState(false);
+  const [savingPref, setSavingPref] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // Sync femaleOnly state with user preference
+  React.useEffect(() => {
+    if (user) {
+      setFemaleOnly(user.femaleOnlyCarpool ?? false);
+    }
+  }, [user]);
 
   const handleLogin = async () => {
     setFormError('');
@@ -57,6 +66,21 @@ export function ProfileScreen() {
 
   const handleAuthSubmit = () => {
     handleLogin();
+  };
+
+  const onToggleFemaleOnly = async () => {
+    const next = !femaleOnly;
+    setFemaleOnly(next);
+    setSavingPref(true);
+    try {
+      await updateFemaleOnlyCarpool(next);
+    } catch (e) {
+      console.error(e);
+      // Revert on error
+      setFemaleOnly(!next);
+    } finally {
+      setSavingPref(false);
+    }
   };
 
   if (loading) {
@@ -197,6 +221,9 @@ export function ProfileScreen() {
 
       <Card style={styles.card} mode="elevated">
         <Card.Content style={styles.cardContent}>
+          <Text variant="titleMedium" style={styles.sectionTitle}>
+            Matching preferences
+          </Text>
           <View style={styles.toggleRow}>
             <View style={styles.toggleLabelBlock}>
               <Text variant="bodyLarge" style={styles.toggleLabel}>
@@ -204,12 +231,13 @@ export function ProfileScreen() {
               </Text>
               <Text variant="bodySmall" style={styles.helperText}>
                 When enabled, your matches will only include female riders/drivers
-                where possible.
+                where possible. Otherwise, mixed is fine.
               </Text>
             </View>
             <NativeSwitch
               value={Boolean(femaleOnly)}
-              onValueChange={setFemaleOnly}
+              onValueChange={onToggleFemaleOnly}
+              disabled={savingPref}
               thumbColor="#F4F7F5"
               ios_backgroundColor="#4B5563"
             />

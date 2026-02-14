@@ -28,6 +28,7 @@ type AuthContextType = AuthState & {
   logout: () => void;
   clearError: () => void;
   signInWithGoogle: () => Promise<void>;
+  updateFemaleOnlyCarpool: (enabled: boolean) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -156,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: profile.sub,
         name: profile.name || profile.email,
         email: profile.email,
+        femaleOnlyCarpool: false, // Default to false for new users
       };
 
       setUser(googleUser);
@@ -170,6 +172,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [promptAsync]);
 
+  const updateFemaleOnlyCarpool = useCallback(async (enabled: boolean) => {
+    if (!user) {
+      throw new Error('No user logged in');
+    }
+
+    try {
+      // TODO: Call backend API when available
+      // await post('/profile/preferences', { femaleOnlyCarpool: enabled });
+      
+      // For now, update local state
+      const updatedUser: User = {
+        ...user,
+        femaleOnlyCarpool: enabled,
+      };
+      
+      setUser(updatedUser);
+      if (token) {
+        await saveAuth(updatedUser, token);
+      }
+      
+      console.log('[Auth] Updated femaleOnlyCarpool preference:', enabled);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to update preference';
+      setError(message);
+      console.error('[Auth] updateFemaleOnlyCarpool failed', e);
+      throw e;
+    }
+  }, [user, token]);
+
   const value: AuthContextType = {
     user,
     token,
@@ -180,6 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     clearError,
     signInWithGoogle,
+    updateFemaleOnlyCarpool,
   };
 
   return (

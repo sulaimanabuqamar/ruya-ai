@@ -20,7 +20,7 @@ import type { PlaceSuggestion, LocationPoint } from '../api/maps';
 import { isValidPositiveNumber } from '../utils/validation';
 import { GOOGLE_MAPS_API_KEY } from '../config/maps';
 import { TimePickerInput } from '../components/TimePickerInput';
-import { parseTime } from '../utils/time';
+import { parseTime, formatTime } from '../utils/time';
 
 type ParkingFlowProps = NativeStackScreenProps<RootStackParamList, 'ParkingFlow'>;
 
@@ -39,8 +39,25 @@ const initialDubaiRegion = {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-function mockBookingProbability(): number {
-  return Math.floor(60 + Math.random() * 35);
+function mockBookingProbability(
+  fromTime: Date | null,
+  toTime: Date | null,
+  price: string,
+  priceValid: boolean
+): number | null {
+  if (!fromTime || !toTime || !priceValid) {
+    return null;
+  }
+  
+  const priceValue = price.trim() === '' ? 0 : Number(price);
+  const windowHours = (toTime.getTime() - fromTime.getTime()) / (1000 * 60 * 60);
+  
+  // Simple heuristic: cheaper + longer window => higher probability
+  const normalizedPrice = Math.min(priceValue / 20, 1); // 0-1 for 0-20 AED
+  let score = 0.7 + windowHours * 0.05 - normalizedPrice * 0.3;
+  score = Math.max(0.1, Math.min(score, 0.95));
+  
+  return Math.round(score * 100);
 }
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -68,7 +85,10 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
   const [snackVisible, setSnackVisible] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
-  const bookingProbability = useMemo(() => mockBookingProbability(), []);
+  const bookingProbability = useMemo(
+    () => mockBookingProbability(fromTime, toTime, price, priceValid),
+    [fromTime, toTime, price, priceValid]
+  );
 
   const priceValid = price.trim() === '' || isValidPositiveNumber(price, 0);
   const showPriceError = priceTouched && !priceValid;
@@ -171,14 +191,15 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
 
   const handleSubmit = () => {
     if (!isFormValid) return;
-    console.log('Parking flow submit', {
-      parkingLocation,
-      fromTime,
-      toTime,
-      price: price.trim() === '' ? null : Number(price.trim()),
-      bookingProbability,
+    const payload = {
       mode,
-    });
+      location: parkingLocation,
+      availableFrom: fromTime ? formatTime(fromTime) : null,
+      availableTo: toTime ? formatTime(toTime) : null,
+      priceAED: price.trim() === '' ? null : Number(price.trim()),
+      bookingProbability,
+    };
+    console.log('Parking flow submit', payload);
     setSnackVisible(true);
   };
 
@@ -318,12 +339,20 @@ export function ParkingFlowScreen({ route }: ParkingFlowProps) {
             </HelperText>
 
             <View style={styles.probRow}>
-              <Text variant="bodyMedium" style={styles.probText}>
-                Expected booking probability: {bookingProbability}%
-              </Text>
-              <Text variant="bodySmall" style={styles.probHint}>
-                AI-generated insight
-              </Text>
+              {bookingProbability !== null ? (
+                <>
+                  <Text variant="bodyMedium" style={styles.probText}>
+                    Expected booking probability: {bookingProbability}%
+                  </Text>
+                  <Text variant="bodySmall" style={styles.probHint}>
+                    AI-generated insight
+                  </Text>
+                </>
+              ) : (
+                <Text variant="bodySmall" style={styles.probHint}>
+                  Fill details to see booking probability
+                </Text>
+              )}
             </View>
 
             <Button
